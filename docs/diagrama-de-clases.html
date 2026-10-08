@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>SarazaFlix - Diagrama de clases</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<style>
+  body { font-family: "Segoe UI", Arial, sans-serif; margin: 0; padding: 24px; background: #ffffff; }
+  h1 { font-size: 22px; margin: 0 0 4px 0; color: #111; }
+  p.sub { font-size: 12px; color: #555; margin: 0 0 16px 0; }
+  .mermaid { }
+</style>
+</head>
+<body>
+<h1>SarazaFlix S.A. &mdash; Diagrama de clases</h1>
+<p class="sub">Trabajo de diploma &minus; Evaluaci&oacute;n parcial 1 &middot; Arquitectura en capas (DomainModel / DAL / BLL / Presentaci&oacute;n) y patrones de dise&ntilde;o aplicados</p>
+
+<pre class="mermaid">
+classDiagram
+    direction LR
+
+    class Usuario {
+        &lt;&lt;entidad&gt;&gt;
+        +string Id
+        +string Nombre
+        +Plan Plan
+    }
+
+    class Contenido {
+        &lt;&lt;entidad&gt;&gt;
+        +string Id
+        +string Titulo
+        +Plan PlanMinimo
+        +EstaIncluidoEn(Plan) bool
+    }
+
+    class Reproduccion {
+        &lt;&lt;registro que se persiste&gt;&gt;
+        +Usuario Usuario
+        +Contenido Contenido
+        +IReadOnlyList~CalidadReproduccion~ CalidadesUsadas
+        +bool ServidoDesdeDispositivo
+        +List~string~ IntentosRechazados
+        +RegistrarCalidad(CalidadReproduccion) void
+    }
+
+    class Plan {
+        &lt;&lt;enumeration&gt;&gt;
+        Basico
+        Estandar
+        Premium
+    }
+
+    class CalidadConexion {
+        &lt;&lt;enumeration&gt;&gt;
+        Mala
+        Media
+        Buena
+    }
+
+    class CalidadReproduccion {
+        &lt;&lt;enumeration&gt;&gt;
+        Baja
+        HD
+        CuatroK
+    }
+
+    class IFuenteContenido {
+        &lt;&lt;interface&gt;&gt;
+        +Obtener(string idContenido) Contenido
+    }
+
+    class ServidorRemotoContenido {
+        &lt;&lt;servidor remoto&gt;&gt;
+        +IReadOnlyCollection~Contenido~ Catalogo
+        +int Descargas
+        +Obtener(string idContenido) Contenido
+    }
+
+    class IRepositorioReproduccion {
+        &lt;&lt;interface - Repository&gt;&gt;
+        +Guardar(Reproduccion) void
+        +ObtenerTodas() IReadOnlyList~Reproduccion~
+    }
+
+    class RepositorioReproduccionArchivo {
+        &lt;&lt;Repository concreto&gt;&gt;
+        +string Ruta
+        formato de texto personalizado (;)
+    }
+
+    class ICalidadReproduccion {
+        &lt;&lt;interface - Strategy&gt;&gt;
+        +CalidadReproduccion Calidad
+        +Reproducir(Contenido) string
+    }
+
+    class Calidad4K {
+        &lt;&lt;Strategy concreta&gt;&gt;
+    }
+
+    class CalidadHD {
+        &lt;&lt;Strategy concreta&gt;&gt;
+    }
+
+    class CalidadBaja {
+        &lt;&lt;Strategy concreta&gt;&gt;
+    }
+
+    class AhorroDatosDecorator {
+        &lt;&lt;Decorator&gt;&gt;
+        +CalidadReproduccion Calidad
+        +CalidadReproduccion CalidadQueCorresponderiaPorConexion
+        +Reproducir(Contenido) string
+    }
+
+    class FabricaCalidad {
+        &lt;&lt;Factory Method&gt;&gt;
+        +Crear(CalidadConexion, bool modoAhorro) ICalidadReproduccion
+    }
+
+    class IObservadorConexion {
+        &lt;&lt;interface - Observer&gt;&gt;
+        +AlCambiarConexion(CalidadConexion) void
+    }
+
+    class MonitorConexion {
+        &lt;&lt;Observer - subject&gt;&gt;
+        +CalidadConexion UltimaMedicion
+        +Suscribir(IObservadorConexion) void
+        +Desuscribir(IObservadorConexion) void
+        +Medir(CalidadConexion) void
+    }
+
+    class ProxyControlPlan {
+        &lt;&lt;Proxy - control de acceso&gt;&gt;
+        +List~string~ IntentosRechazados
+        +Obtener(string idContenido) Contenido
+    }
+
+    class ProxyCacheLocal {
+        &lt;&lt;Proxy - cache del dispositivo&gt;&gt;
+        +IReadOnlyCollection~Contenido~ ContenidosEnDispositivo
+        +bool UltimoSirvioDesdeDispositivo
+        +Obtener(string idContenido) Contenido
+    }
+
+    class ExportadorBase~T~ {
+        &lt;&lt;Template Method + Reflexion&gt;&gt;
+        #string Separador
+        +Exportar(IEnumerable~T~) string
+        +Exportar(string ruta, IEnumerable~T~) void
+    }
+
+    class ExportadorTexto~T~ {
+        &lt;&lt;formato concreto&gt;&gt;
+    }
+
+    class Reproductor {
+        &lt;&lt;contexto de Strategy / Observer&gt;&gt;
+        +Reproduccion Registro
+        +CalidadConexion Conexion
+        +bool ModoAhorro
+        +CalidadReproduccion CalidadActual
+        +Reproducir() string
+        +AlCambiarConexion(CalidadConexion) void
+        +ActivarModoAhorro(bool) void
+        +CambiarContenido(string) bool
+    }
+
+    class ServicioReproduccion {
+        &lt;&lt;arma la cadena de proxies&gt;&gt;
+        +Iniciar(Usuario, string idContenido) Reproductor
+        +Detener(Reproductor) void
+    }
+
+    class Consola {
+        &lt;&lt;Presentacion&gt;&gt;
+        +Main() void
+    }
+
+    Reproductor ..|&gt; IObservadorConexion : observa
+    MonitorConexion o-- IObservadorConexion : notifica
+    Reproductor o-- ICalidadReproduccion : usa
+    AhorroDatosDecorator ..|&gt; ICalidadReproduccion : implementa
+    AhorroDatosDecorator o-- ICalidadReproduccion : envuelve
+    ICalidadReproduccion &lt;|.. Calidad4K
+    ICalidadReproduccion &lt;|.. CalidadHD
+    ICalidadReproduccion &lt;|.. CalidadBaja
+    FabricaCalidad ..&gt; ICalidadReproduccion : crea
+    Reproductor ..&gt; FabricaCalidad : pide la calidad
+    IFuenteContenido &lt;|.. ServidorRemotoContenido
+    IFuenteContenido &lt;|.. ProxyCacheLocal
+    IFuenteContenido &lt;|.. ProxyControlPlan
+    ProxyControlPlan o-- IFuenteContenido : delega
+    ProxyCacheLocal o-- IFuenteContenido : envuelve al servidor
+    IRepositorioReproduccion &lt;|.. RepositorioReproduccionArchivo
+    ExportadorBase~T~ &lt;|-- ExportadorTexto~T~
+    Reproductor ..&gt; Reproduccion : registra
+    Reproduccion --&gt; Usuario
+    Reproduccion --&gt; Contenido
+    Contenido ..&gt; Plan
+    Reproduccion ..&gt; CalidadReproduccion
+    Reproductor ..&gt; CalidadConexion
+    ServicioReproduccion ..&gt; Reproductor : crea
+    ServicioReproduccion ..&gt; ServidorRemotoContenido : usa
+    ServicioReproduccion ..&gt; IRepositorioReproduccion : persiste
+    Consola ..&gt; ServicioReproduccion
+    Consola ..&gt; ExportadorTexto~T~
+</pre>
+
+<script>
+  mermaid.initialize({ startOnLoad: true, theme: 'default', class: { useMaxWidth: false } });
+
+  // ?a3 = PDF en A3 apaisado con el diagrama escalado para entrar en la hoja
+  // sin parametro = PNG a tamano natural (la pagina se ajusta al diagrama)
+  var paraA3 = window.location.search.indexOf('a3') >= 0;
+
+  window.addEventListener('load', function () {
+    setTimeout(function () {
+      var svg = document.querySelector('.mermaid svg');
+      if (!svg) { document.title = 'ERROR mermaid'; return; }
+
+      var style = document.createElement('style');
+
+      if (paraA3) {
+        document.body.style.padding = '0';
+        // el diagrama se escala al alto de la hoja A3 apaisado respetando la proporcion
+        svg.style.height = '248mm';
+        svg.style.width = 'auto';
+        svg.style.maxWidth = '100%';
+        style.textContent = '@page { size: A3 landscape; margin: 8mm; } .mermaid { margin: 0; }';
+        document.title = 'diagrama-A3';
+      } else {
+        var w = Math.ceil(parseFloat(svg.getAttribute('width') || svg.getBoundingClientRect().width));
+        var h = Math.ceil(parseFloat(svg.getAttribute('height') || svg.getBoundingClientRect().height));
+        style.textContent = '@page { size: ' + (w + 60) + 'px ' + (h + 110) + 'px; margin: 0; }';
+        document.title = 'diagrama ' + w + 'x' + h;
+      }
+
+      document.head.appendChild(style);
+    }, 1200);
+  });
+</script>
+</body>
+</html>

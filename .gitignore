@@ -1,0 +1,8 @@
+## Ignorar archivos de compilación
+bin/
+obj/
+*.user
+.vs/
+
+## Datos generados al ejecutar la aplicación de consola
+SarazaFlix.Consola/datos/
