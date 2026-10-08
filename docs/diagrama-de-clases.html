@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<title>SarazaFlix - Diagrama de clases</title>
+<title>SarazaFlix - Diagrama de clases (State)</title>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
 <style>
   body { font-family: "Segoe UI", Arial, sans-serif; margin: 0; padding: 24px; background: #ffffff; }
@@ -13,7 +13,7 @@
 </head>
 <body>
 <h1>SarazaFlix S.A. &mdash; Diagrama de clases</h1>
-<p class="sub">Trabajo de diploma &minus; Evaluaci&oacute;n parcial 1 &middot; Arquitectura en capas (DomainModel / DAL / BLL / Presentaci&oacute;n) y patrones de dise&ntilde;o aplicados</p>
+<p class="sub">Trabajo de diploma &minus; Evaluaci&oacute;n parcial 1 &middot; Variante con <b>patr&oacute;n State</b>: el estado decide la calidad y la transici&oacute;n (el resto de las capas y patrones no cambian)</p>
 
 <pre class="mermaid">
 classDiagram
@@ -89,34 +89,33 @@ classDiagram
         formato de texto personalizado (;)
     }
 
-    class ICalidadReproduccion {
-        &lt;&lt;interface - Strategy&gt;&gt;
+    class IEstadoReproduccion {
+        &lt;&lt;interface - State&gt;&gt;
         +CalidadReproduccion Calidad
         +Reproducir(Contenido) string
+        +Siguiente(CalidadConexion) IEstadoReproduccion
     }
 
-    class Calidad4K {
-        &lt;&lt;Strategy concreta&gt;&gt;
+    class ConexionBuena {
+        &lt;&lt;estado concreto: conexion buena, reproduce en 4K&gt;&gt;
     }
 
-    class CalidadHD {
-        &lt;&lt;Strategy concreta&gt;&gt;
+    class ConexionMedia {
+        &lt;&lt;estado concreto: conexion media, reproduce en HD&gt;&gt;
     }
 
-    class CalidadBaja {
-        &lt;&lt;Strategy concreta&gt;&gt;
+    class ConexionMala {
+        &lt;&lt;estado concreto: conexion mala, reproduce en baja&gt;&gt;
     }
 
-    class AhorroDatosDecorator {
-        &lt;&lt;Decorator&gt;&gt;
-        +CalidadReproduccion Calidad
-        +CalidadReproduccion CalidadQueCorresponderiaPorConexion
-        +Reproducir(Contenido) string
+    class AhorroDeDatos {
+        &lt;&lt;estado concreto: modo ahorro, siempre en baja&gt;&gt;
+        +IEstadoReproduccion EstadoDeConexion
     }
 
-    class FabricaCalidad {
-        &lt;&lt;Factory Method&gt;&gt;
-        +Crear(CalidadConexion, bool modoAhorro) ICalidadReproduccion
+    class FabricaEstado {
+        &lt;&lt;Factory Method - tabla de transiciones&gt;&gt;
+        +Crear(CalidadConexion) IEstadoReproduccion
     }
 
     class IObservadorConexion {
@@ -157,7 +156,8 @@ classDiagram
     }
 
     class Reproductor {
-        &lt;&lt;contexto de Strategy / Observer&gt;&gt;
+        &lt;&lt;contexto de State / Observer&gt;&gt;
+        -IEstadoReproduccion estado
         +Reproduccion Registro
         +CalidadConexion Conexion
         +bool ModoAhorro
@@ -166,6 +166,7 @@ classDiagram
         +AlCambiarConexion(CalidadConexion) void
         +ActivarModoAhorro(bool) void
         +CambiarContenido(string) bool
+        -CambiarEstado(IEstadoReproduccion) void
     }
 
     class ServicioReproduccion {
@@ -179,16 +180,20 @@ classDiagram
         +Main() void
     }
 
+    Reproductor o-- IEstadoReproduccion : estado actual
+    IEstadoReproduccion &lt;|.. ConexionBuena
+    IEstadoReproduccion &lt;|.. ConexionMedia
+    IEstadoReproduccion &lt;|.. ConexionMala
+    IEstadoReproduccion &lt;|.. AhorroDeDatos
+    AhorroDeDatos o-- IEstadoReproduccion : guarda el estado de conexion de abajo
+    ConexionBuena ..&gt; FabricaEstado : pide la transicion
+    ConexionMedia ..&gt; FabricaEstado : pide la transicion
+    ConexionMala ..&gt; FabricaEstado : pide la transicion
+    AhorroDeDatos ..&gt; FabricaEstado : actualiza la conexion de adentro
+    FabricaEstado ..&gt; IEstadoReproduccion : crea
+    Reproductor ..&gt; FabricaEstado : estado inicial
     Reproductor ..|&gt; IObservadorConexion : observa
     MonitorConexion o-- IObservadorConexion : notifica
-    Reproductor o-- ICalidadReproduccion : usa
-    AhorroDatosDecorator ..|&gt; ICalidadReproduccion : implementa
-    AhorroDatosDecorator o-- ICalidadReproduccion : envuelve
-    ICalidadReproduccion &lt;|.. Calidad4K
-    ICalidadReproduccion &lt;|.. CalidadHD
-    ICalidadReproduccion &lt;|.. CalidadBaja
-    FabricaCalidad ..&gt; ICalidadReproduccion : crea
-    Reproductor ..&gt; FabricaCalidad : pide la calidad
     IFuenteContenido &lt;|.. ServidorRemotoContenido
     IFuenteContenido &lt;|.. ProxyCacheLocal
     IFuenteContenido &lt;|.. ProxyControlPlan
@@ -202,6 +207,7 @@ classDiagram
     Contenido ..&gt; Plan
     Reproduccion ..&gt; CalidadReproduccion
     Reproductor ..&gt; CalidadConexion
+    IEstadoReproduccion ..&gt; CalidadConexion
     ServicioReproduccion ..&gt; Reproductor : crea
     ServicioReproduccion ..&gt; ServidorRemotoContenido : usa
     ServicioReproduccion ..&gt; IRepositorioReproduccion : persiste

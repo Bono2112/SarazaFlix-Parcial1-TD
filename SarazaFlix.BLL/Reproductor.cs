@@ -1,21 +1,22 @@
-using SarazaFlix.BLL.Calidades;
 using SarazaFlix.BLL.Conexion;
 using SarazaFlix.BLL.Contenidos;
+using SarazaFlix.BLL.Estados;
 using SarazaFlix.DomainModel;
 
 namespace SarazaFlix.BLL;
 
 /// <summary>
 /// Pantalla de reproducción.
-/// Es el contexto del Strategy (la calidad con la que reproduce) y un observador del monitor de
-/// conexión, así puede cambiar la forma de reproducir en plena reproducción.
+/// Es el contexto del State (delega la forma de reproducir en su estado actual y le pide la
+/// transición ante cada medición) y un observador del monitor de conexión, así puede cambiar la
+/// forma de reproducir en plena reproducción.
 /// </summary>
 public class Reproductor : IObservadorConexion
 {
     private readonly ProxyControlPlan _fuente;
     private readonly ProxyCacheLocal _dispositivo;
     private readonly MonitorConexion _monitor;
-    private ICalidadReproduccion _calidad;
+    private IEstadoReproduccion _estado;
 
     internal Reproductor(Reproduccion registro, ProxyControlPlan fuente, ProxyCacheLocal dispositivo,
         MonitorConexion monitor)
@@ -26,8 +27,8 @@ public class Reproductor : IObservadorConexion
         _monitor = monitor;
 
         Conexion = monitor.UltimaMedicion;
-        _calidad = FabricaCalidad.Crear(Conexion, ModoAhorro);
-        Registro.RegistrarCalidad(_calidad.Calidad);
+        _estado = FabricaEstado.Crear(Conexion);
+        Registro.RegistrarCalidad(_estado.Calidad);
 
         _monitor.Suscribir(this); // Observer: queda escuchando las mediciones de conexión
     }
@@ -37,26 +38,32 @@ public class Reproductor : IObservadorConexion
 
     public CalidadConexion Conexion { get; private set; }
 
-    public bool ModoAhorro { get; private set; }
+    /// <summary>El modo ahorro no es un flag aparte: es el estado de ahorro el que lo determina.</summary>
+    public bool ModoAhorro => _estado is AhorroDeDatos;
 
-    public CalidadReproduccion CalidadActual => _calidad.Calidad;
+    public CalidadReproduccion CalidadActual => _estado.Calidad;
 
-    public string Reproducir() => _calidad.Reproducir(Registro.Contenido);
+    public string Reproducir() => _estado.Reproducir(Registro.Contenido);
 
     /// <summary>
-    /// El sistema midió la conexión otra vez: se cambia la estrategia de calidad en caliente.
+    /// El sistema midió la conexión otra vez: el estado actual decide hacia qué estado pasar,
+    /// así se cambia la forma de reproducir en plena reproducción.
     /// </summary>
     public void AlCambiarConexion(CalidadConexion conexion)
     {
         Conexion = conexion;
-        AplicarCalidad();
+        CambiarEstado(_estado.Siguiente(conexion));
     }
 
     /// <summary>Botón manual: el usuario prende o apaga el modo ahorro de datos.</summary>
     public void ActivarModoAhorro(bool activo)
     {
-        ModoAhorro = activo;
-        AplicarCalidad();
+        if (activo == ModoAhorro)
+            return;
+
+        CambiarEstado(activo
+            ? new AhorroDeDatos(_estado)
+            : ((AhorroDeDatos)_estado).EstadoDeConexion); // vuelve al estado de conexión que quedó debajo
     }
 
     /// <summary>
@@ -91,10 +98,9 @@ public class Reproductor : IObservadorConexion
         Registro.IntentosRechazados.AddRange(_fuente.IntentosRechazados);
     }
 
-    private void AplicarCalidad()
+    private void CambiarEstado(IEstadoReproduccion estado)
     {
-        // Strategy: se reemplaza la estrategia según la conexión y el modo ahorro
-        _calidad = FabricaCalidad.Crear(Conexion, ModoAhorro);
-        Registro.RegistrarCalidad(_calidad.Calidad);
+        _estado = estado;
+        Registro.RegistrarCalidad(_estado.Calidad); // queda registrado cada cambio de calidad real
     }
 }
